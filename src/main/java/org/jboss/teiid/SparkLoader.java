@@ -9,10 +9,9 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
-import org.apache.spark.sql.hive.HiveContext;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 
 public class SparkLoader {
     public static Options options;
@@ -82,11 +81,7 @@ public class SparkLoader {
             return;
         }
 
-        SparkConf conf = new SparkConf().setAppName("Simple Application");
-
-        JavaSparkContext sc = new JavaSparkContext(conf);
-
-        HiveContext hiveContext = new HiveContext(sc);
+        SparkSession spark = SparkSession.builder().appName("Spark loader").enableHiveSupport().getOrCreate();
 
         Map<String, String> options = new HashMap<String, String>();
         options.put("url", jdbcUrl);
@@ -94,9 +89,9 @@ public class SparkLoader {
         options.put("user", username);
         options.put("password", password);
         options.put("driver", jdbcClass);
-        DataFrame jdbcDF = hiveContext.read().format("jdbc").options(options).load();
+        Dataset<Row> jdbcRow = spark.read().format("jdbc").options(options).load();
         StringBuilder b = new StringBuilder();
-        for (String s : jdbcDF.columns()) {
+        for (String s : jdbcRow.columns()) {
             if (b.length() > 0)
                 b.append(",");
             b.append(s);
@@ -105,10 +100,8 @@ public class SparkLoader {
 
         System.out.println("columns retreived:" + cols);
 
-        jdbcDF.show();
-        jdbcDF.registerTempTable("tmp" + targetTable);
-
-        hiveContext.sql("create table " + targetTable + " as SELECT " + cols + " FROM tmp" + targetTable).write();
+        jdbcRow.show();
+        jdbcRow.select("*").write().saveAsTable(targetTable);
 
     }
 
